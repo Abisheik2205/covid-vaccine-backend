@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>COVID-19 Vaccine Analysis</title>
+
+  <!--
+  =================================================================
+  WHAT IS THIS FILE?
+  This is your entire frontend — one HTML file that:
+    1. Fetches data from your Spring Boot backend (fetch API)
+    2. Draws charts (Chart.js library)
+    3. Shows a data table with search/filter
+    4. Has forms to Add, Edit, Delete records (CRUD)
+
+  HOW THE FRONTEND TALKS TO THE BACKEND:
+    Frontend (this file) → HTTP Request → Backend (Spring Boot)
+    Backend queries DB → returns JSON → Frontend draws charts
+
+  IMPORTANT: Update API_BASE below with your Render backend URL!
+  =================================================================
+  -->
+
+  <!-- Chart.js: free chart library loaded from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root {
+      --bg:         #05080f;
+      --surface:    #0d1117;
+      --surface2:   #161b22;
+      --surface3:   #1c2330;
+      --border:     rgba(255,255,255,0.06);
+      --border2:    rgba(255,255,255,0.12);
+      --green:      #3fb950;
+      --blue:       #58a6ff;
+      --orange:     #f0883e;
+      --red:        #f85149;
+      --purple:     #bc8cff;
+      --yellow:     #e3b341;
+      --text:       #c9d1d9;
+      --text-dim:   #6e7681;
+      --text-bright:#e6edf3;
+      --font:       'Space Grotesk', sans-serif;
+      --mono:       'JetBrains Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ===== TOPBAR ===== */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-bright);
+    }
+    .brand-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.4; }
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .api-status {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+    }
+    .api-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: all 0.3s;
+    }
+    .api-dot.up   { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .api-dot.down { background: var(--red); }
+
+    /* ===== LAYOUT ===== */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      margin-bottom: 2rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--green);
+      border: 1px solid rgba(63,185,80,0.3);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      margin-bottom: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+    .hero h1 {
+      font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+      font-weight: 700;
+      color: var(--text-bright);
+      line-height: 1.2;
+      margin-bottom: 0.5rem;
+    }
+    .hero h1 em { font-style: normal; color: var(--blue); }
+    .hero p {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      max-width: 500px;
+    }
+
+    /* ===== API CONFIG BAR ===== */
+    .api-config {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .api-config label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .api-config input {
+      flex: 1;
+      min-width: 250px;
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.45rem 0.8rem;
+      color: var(--text-bright);
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .api-config input:focus { border-color: var(--blue); }
+    .btn {
+      padding: 0.45rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-family: var(--font);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary  { background: var(--blue);   color: #05080f; }
+    .btn-success  { background: var(--green);  color: #05080f; }
+    .btn-danger   { background: var(--red);    color: #fff; }
+    .btn-warning  { background: var(--orange); color: #05080f; }
+    .btn-ghost    { background: var(--surface3); color: var(--text); border: 1px solid var(--border2); }
+    .btn:hover    { opacity: 0.85; }
+
+    /* ===== STATS GRID ===== */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden;
+      animation: fadeIn 0.4s ease both;
+    }
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+    }
+    .stat-card:nth-child(1)::after { background: var(--blue); }
+    .stat-card:nth-child(2)::after { background: var(--green); }
+    .stat-card:nth-child(3)::after { background: var(--orange); }
+    .stat-card:nth-child(4)::after { background: var(--purple); }
+    .stat-card:nth-child(5)::after { background: var(--yellow); }
+    .stat-card:nth-child(6)::after { background: var(--red); }
+
+    .stat-label {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 0.5rem;
+    }
+    .stat-value {
+      font-size: 1.9rem;
+      font-weight: 700;
+      color: var(--text-bright);
+      font-family: var(--mono);
+      line-height: 1;
+    }
+
+    /* ===== SECTION TITLE ===== */
+    .section-title {
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .section-title::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 14px;
+      background: var(--blue);
+      border-radius: 2px;
+    }
+
+    /* ===== CHARTS ===== */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    @media(max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      animation: fadeIn 0.5s ease both;
+    }
+    .chart-card.full { grid-column: 1 / -1; }
+
+    .chart-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .chart-head-title { font-weight: 600; font-size: 0.9rem; color: var(--text-bright); }
+    .chart-head-sub   { font-size: 0.73rem; color: var(--text-dim); margin-top: 0.15rem; }
+
+    select {
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.3rem 0.6rem;
+      font-family: var(--font);
+      font-size: 0.75rem;
+      outline: none;
+      cursor: pointer;
+    }
+    select:focus { border-color: var(--blue); }
+
+    .chart-wrap { position: relative; height: 260px; }
+
+    /* ===== CRUD PANEL ===== */
+    .crud-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .crud-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .crud-tab {
+      padding: 0.4rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      font-family: var(--font);
+      transition: all 0.2s;
+    }
+    .crud-tab.active-add    { background: var(--green);  color: #05080f; border-color: var(--green); }
+    .crud-tab.active-edit   { background: var(--orange); color: #05080f; border-color: var(--orange); }
+    .crud-tab.active-delete { background: var(--red);    color: #fff;    border-color: var(--red); }
+
+    .crud-form { display: none; }
+    .crud-form.active { display: block; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .form-group label {
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .form-group input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      color: var(--text-bright);
+      font-family: var(--font);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus { border-color: var(--blue); }
+    .form-message {
+      padding: 0.6rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      margin-top: 0.75rem;
+      display: none;
+    }
+    .form-message.success { background: rgba(63,185,80,0.12); border: 1px solid rgba(63,185,80,0.3); color: var(--green); display: block; }
+    .form-message.error   { background: rgba(248,81,73,0.12);  border: 1px solid rgba(248,81,73,0.3);  color: var(--red);   display: block; }
+
+    /* ===== TABLE ===== */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 2rem;
+      overflow-x: auto;
+    }
+    .table-toolbar {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .table-toolbar input {
+      flex: 1;
+      min-width: 200px;
+      max-width: 300px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.4rem 0.75rem;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.82rem;
+      outline: none;
+    }
+    .table-toolbar input:focus { border-color: var(--blue); }
+    .records-count {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-left: auto;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    thead th {
+      text-align: left;
+      padding: 0.5rem 0.9rem;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td { padding: 0.65rem 0.9rem; color: var(--text); }
+    .td-country { font-weight: 600; color: var(--text-bright); }
+    .td-vaccine { font-family: var(--mono); font-size: 0.75rem; color: var(--blue); }
+    .td-num     { font-family: var(--mono); font-size: 0.8rem; }
+    .td-date    { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); }
+    .td-actions { white-space: nowrap; display: flex; gap: 0.4rem; }
+    .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.72rem; }
+
+    /* ===== EMPTY / LOADING ===== */
+    .empty {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+    .empty-icon { font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.4; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+    }
+    footer span { color: var(--blue); }
+  </style>
+</head>
+<body>
+
+<!-- ===== TOP BAR ===== -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-dot"></div>
+    COVID-19 Vaccine Analysis
+  </div>
+  <div class="topbar-right">
+    <div class="api-status">
+      <div class="api-dot" id="apiDot"></div>
+      <span id="apiStatusText">disconnected</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ===== HERO ===== -->
+  <div class="hero">
+    <div class="hero-tag">// global health data</div>
+    <h1>Vaccine <em>Analysis</em><br/>Dashboard</h1>
+    <p>Real-time COVID-19 vaccination statistics powered by your Spring Boot API and PostgreSQL database.</p>
+  </div>
+
+  <!-- ===== API CONFIG =====
+       Paste your Render backend URL here.
+       After deployment, you can hard-code it by setting:
+       const API_BASE = 'https://your-backend.onrender.com';
+  -->
+  <div class="api-config">
+    <label>BACKEND_URL =</label>
+    <input type="text" id="apiInput"
+           placeholder="https://covid-vaccine-backend.onrender.com"
+           value=""/>
+    <button class="btn btn-primary" onclick="connect()">Connect</button>
+    <button class="btn btn-ghost"   onclick="loadDemo()">Demo Mode</button>
+  </div>
+
+  <!-- ===== STATS ===== -->
+  <div class="section-title">statistics</div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Total Vaccinated</div><div class="stat-value" id="s1">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total Doses</div><div class="stat-value" id="s2">—</div></div>
+    <div class="stat-card"><div class="stat-label">Fully Vaccinated</div><div class="stat-value" id="s3">—</div></div>
+    <div class="stat-card"><div class="stat-label">Countries Tracked</div><div class="stat-value" id="s4">—</div></div>
+    <div class="stat-card"><div class="stat-label">Vaccine Types</div><div class="stat-value" id="s5">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total Records</div><div class="stat-value" id="s6">—</div></div>
+  </div>
+
+  <!-- ===== CHARTS ===== -->
+  <div class="section-title">charts</div>
+  <div class="charts-grid">
+
+    <div class="chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-head-title">Vaccinations by Country</div>
+          <div class="chart-head-sub">Total people vaccinated per country</div>
+        </div>
+        <select id="countryLimit" onchange="renderBarChart()">
+          <option value="10">Top 10</option>
+          <option value="20">Top 20</option>
+          <option value="999">All</option>
+        </select>
+      </div>
+      <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-head-title">Vaccine Type Distribution</div>
+          <div class="chart-head-sub">Doses by vaccine name</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="doughnutChart"></canvas></div>
+    </div>
+
+    <div class="chart-card full">
+      <div class="chart-head">
+        <div>
+          <div class="chart-head-title">Vaccination Trend Over Time</div>
+          <div class="chart-head-sub">Cumulative doses administered</div>
+        </div>
+        <select id="trendFilter" onchange="renderLineChart()">
+          <option value="all">All Countries</option>
+        </select>
+      </div>
+      <div class="chart-wrap" style="height:300px;"><canvas id="lineChart"></canvas></div>
+    </div>
+
+  </div>
+
+  <!-- ===== CRUD PANEL ===== -->
+  <div class="section-title">manage records</div>
+  <div class="crud-panel">
+    <div class="crud-tabs">
+      <button class="crud-tab" id="tabAdd"    onclick="showTab('add')">➕ Add Record</button>
+      <button class="crud-tab" id="tabEdit"   onclick="showTab('edit')">✏️ Edit Record</button>
+      <button class="crud-tab" id="tabDelete" onclick="showTab('delete')">🗑️ Delete Record</button>
+    </div>
+
+    <!-- ADD FORM -->
+    <div class="crud-form" id="formAdd">
+      <div class="form-grid">
+        <div class="form-group"><label>Country *</label><input id="add_country"    placeholder="e.g. India"/></div>
+        <div class="form-group"><label>Vaccine Name *</label><input id="add_vaccine" placeholder="e.g. Covaxin"/></div>
+        <div class="form-group"><label>Total Vaccinated</label><input id="add_totalVaccinated" type="number" placeholder="e.g. 850000000"/></div>
+        <div class="form-group"><label>Total Doses</label><input id="add_totalDoses" type="number" placeholder="e.g. 1400000000"/></div>
+        <div class="form-group"><label>Fully Vaccinated</label><input id="add_fullyVaccinated" type="number" placeholder="e.g. 700000000"/></div>
+        <div class="form-group"><label>Record Date</label><input id="add_date" type="date"/></div>
+        <div class="form-group"><label>Population</label><input id="add_population" type="number" placeholder="e.g. 1400000000"/></div>
+      </div>
+      <button class="btn btn-success" onclick="addRecord()">Save Record</button>
+      <div class="form-message" id="addMsg"></div>
+    </div>
+
+    <!-- EDIT FORM -->
+    <div class="crud-form" id="formEdit">
+      <div class="form-grid">
+        <div class="form-group"><label>Record ID *</label><input id="edit_id" type="number" placeholder="Enter ID to edit"/></div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadRecord()" style="margin-bottom:1rem;">Load Record</button>
+      <div id="editFields" style="display:none;">
+        <div class="form-grid">
+          <div class="form-group"><label>Country</label><input id="edit_country"/></div>
+          <div class="form-group"><label>Vaccine Name</label><input id="edit_vaccine"/></div>
+          <div class="form-group"><label>Total Vaccinated</label><input id="edit_totalVaccinated" type="number"/></div>
+          <div class="form-group"><label>Total Doses</label><input id="edit_totalDoses" type="number"/></div>
+          <div class="form-group"><label>Fully Vaccinated</label><input id="edit_fullyVaccinated" type="number"/></div>
+          <div class="form-group"><label>Record Date</label><input id="edit_date" type="date"/></div>
+          <div class="form-group"><label>Population</label><input id="edit_population" type="number"/></div>
+        </div>
+        <button class="btn btn-warning" onclick="updateRecord()">Update Record</button>
+      </div>
+      <div class="form-message" id="editMsg"></div>
+    </div>
+
+    <!-- DELETE FORM -->
+    <div class="crud-form" id="formDelete">
+      <div class="form-grid">
+        <div class="form-group"><label>Record ID *</label><input id="delete_id" type="number" placeholder="Enter ID to delete"/></div>
+      </div>
+      <button class="btn btn-danger" onclick="deleteRecord()">Delete Record</button>
+      <div class="form-message" id="deleteMsg"></div>
+    </div>
+  </div>
+
+  <!-- ===== DATA TABLE ===== -->
+  <div class="section-title">all records</div>
+  <div class="table-card">
+    <div class="table-toolbar">
+      <input type="text" id="searchInput" placeholder="Search by country..." oninput="filterTable()"/>
+      <select id="filterVaccine" onchange="filterTable()">
+        <option value="">All vaccines</option>
+      </select>
+      <button class="btn btn-ghost" onclick="loadAllData()" style="font-size:0.75rem;">↻ Refresh</button>
+      <span class="records-count" id="recordCount">0 records</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Country</th>
+          <th>Vaccine</th>
+          <th>Vaccinated</th>
+          <th>Total Doses</th>
+          <th>Fully Vacc.</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="8"><div class="empty"><div class="empty-icon">🔌</div>Connect your backend to load data</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /container -->
+
+<footer>
+  COVID-19 Vaccine Analysis &nbsp;·&nbsp;
+  Spring Boot + PostgreSQL + <span>Render</span> &nbsp;·&nbsp;
+  Chart.js
+</footer>
+
+
+<script>
+/*
+=======================================================================
+JAVASCRIPT — HOW THE FRONTEND WORKS
+
+KEY CONCEPT: ASYNC / AWAIT
+JavaScript is "non-blocking" — it doesn't wait for slow tasks.
+async/await makes it readable:
+
+  async function loadData() {
+    const res  = await fetch(url);   // wait for HTTP response
+    const data = await res.json();   // wait for JSON parsing
+    // now data is ready to use
+  }
+
+fetch() returns a Promise — a "promise" to deliver data later.
+await pauses execution until the promise resolves.
+=======================================================================
+*/
+
+// -----------------------------------------------------------------------
+// CONFIGURATION
+// -----------------------------------------------------------------------
+// UPDATE THIS after you deploy your backend to Render!
+// Either paste URL in the input box, or hard-code it here:
+let API_BASE = '';
+
+// Global data storage
+let allRecords     = [];   // all vaccine records from /api/vaccines/all
+let chartData      = {};   // chart-specific data
+let chartBar       = null; // Chart.js instance
+let chartDoughnut  = null;
+let chartLine      = null;
+
+// Color palette for charts
+const PALETTE = ['#58a6ff','#3fb950','#f0883e','#bc8cff',
+                 '#e3b341','#f85149','#39d353','#79c0ff',
+                 '#d2a8ff','#ffa657'];
+
+// Chart.js global defaults
+Chart.defaults.color = '#6e7681';
+Chart.defaults.font.family = 'JetBrains Mono';
+
+// -----------------------------------------------------------------------
+// CONNECT TO BACKEND
+// Called when user clicks "Connect" button
+// -----------------------------------------------------------------------
+async function connect() {
+  // Read the URL from the input, remove trailing slash
+  const input = document.getElementById('apiInput').value.trim().replace(/\/$/, '');
+
+  if (!input) {
+    alert('Please enter your Render backend URL first!\nExample: https://covid-vaccine-backend.onrender.com');
+    return;
+  }
+
+  API_BASE = input;
+  await loadAllData();
+}
+
+// -----------------------------------------------------------------------
+// LOAD ALL DATA FROM BACKEND
+// This is the main function — it fetches everything and renders the page
+// -----------------------------------------------------------------------
+async function loadAllData() {
+  try {
+    setStatus('connecting...');
+
+    /*
+    WHAT IS fetch()?
+    fetch(url) sends an HTTP GET request to the URL.
+    It returns a Promise. We await it to get the Response object.
+    Then .json() parses the response body (text) into a JS object.
+
+    Your Spring Boot @GetMapping("/all") handles this request,
+    queries the database, and returns JSON like:
+    [
+      { "id":1, "country":"India", "vaccineName":"Covaxin", ... },
+      { "id":2, "country":"USA",   "vaccineName":"Pfizer",  ... }
+    ]
+    */
+    const res = await fetch(`${API_BASE}/api/vaccines/all`);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    allRecords = await res.json();
+    setStatus('connected', true);
+
+    // Fetch stats and chart data in parallel (Promise.all = run simultaneously)
+    const [stats, byCountry, byType, trend] = await Promise.all([
+      fetchJson('/api/vaccines/stats'),
+      fetchJson('/api/vaccines/charts/by-country'),
+      fetchJson('/api/vaccines/charts/by-vaccine-type'),
+      fetchJson('/api/vaccines/charts/trend')
+    ]);
+
+    // Store chart data globally
+    chartData = { byCountry, byType, trend };
+
+    // Now render everything
+    renderStats(stats);
+    renderBarChart();
+    renderDoughnutChart();
+    populateTrendFilter();
+    renderLineChart();
+    renderTable(allRecords);
+    populateVaccineFilter();
+
+  } catch (err) {
+    setStatus('offline', false);
+    console.error('Load failed:', err);
+    alert(`Could not connect to backend.\n\nError: ${err.message}\n\nMake sure:\n1. Your Render URL is correct\n2. @CrossOrigin is in your Controller\n3. The backend is running (check Render logs)`);
+  }
+}
+
+// Helper: fetch JSON from a backend endpoint
+async function fetchJson(path) {
+  const res = await fetch(API_BASE + path);
+  if (!res.ok) throw new Error(`${path} returned ${res.status}`);
+  return res.json();
+}
+
+// -----------------------------------------------------------------------
+// UPDATE STATUS INDICATOR IN TOP BAR
+// -----------------------------------------------------------------------
+function setStatus(text, online) {
+  document.getElementById('apiStatusText').textContent = text;
+  const dot = document.getElementById('apiDot');
+  dot.className = 'api-dot' + (online === true ? ' up' : online === false ? ' down' : '');
+}
+
+// -----------------------------------------------------------------------
+// RENDER STATS CARDS
+// -----------------------------------------------------------------------
+function renderStats(stats) {
+  /*
+  stats is the JSON from /api/vaccines/stats:
+  { totalVaccinated: 5200000000, totalDoses: 11500000000, ... }
+  */
+  document.getElementById('s1').textContent = fmt(stats.totalVaccinated);
+  document.getElementById('s2').textContent = fmt(stats.totalDoses);
+  document.getElementById('s3').textContent = fmt(stats.fullyVaccinated);
+  document.getElementById('s4').textContent = stats.countriesTracked ?? '—';
+  document.getElementById('s5').textContent = stats.vaccineTypes ?? '—';
+  document.getElementById('s6').textContent = stats.totalRecords ?? '—';
+}
+
+// -----------------------------------------------------------------------
+// BAR CHART — vaccinations per country
+// -----------------------------------------------------------------------
+function renderBarChart() {
+  const limit = parseInt(document.getElementById('countryLimit').value);
+  const data  = (chartData.byCountry || []).slice(0, limit);
+
+  // data = [{ country: "India", total: 1800000000 }, ...]
+  const labels = data.map(d => d.country);
+  const values = data.map(d => d.total);
+
+  if (chartBar) chartBar.destroy();  // destroy old chart to avoid memory leak
+
+  chartBar = new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Total Vaccinated',
+        data: values,
+        backgroundColor: PALETTE.map(c => c + '33'),  // 33 = 20% opacity
+        borderColor:     PALETTE,
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + fmt(c.raw) } } },
+      scales: {
+        x: { grid: { color: '#161b22' }, ticks: { maxRotation: 45 } },
+        y: { grid: { color: '#161b22' }, ticks: { callback: v => fmt(v) } }
+      }
+    }
+  });
+}
+
+// -----------------------------------------------------------------------
+// DOUGHNUT CHART — vaccine type distribution
+// -----------------------------------------------------------------------
+function renderDoughnutChart() {
+  const data   = chartData.byType || [];
+  const labels = data.map(d => d.vaccineName);
+  const values = data.map(d => d.doses);
+
+  if (chartDoughnut) chartDoughnut.destroy();
+
+  chartDoughnut = new Chart(document.getElementById('doughnutChart'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: PALETTE.map(c => c + 'cc'),
+        borderColor:     PALETTE,
+        borderWidth: 2,
+        hoverOffset: 10
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)}` } }
+      }
+    }
+  });
+}
+
+// -----------------------------------------------------------------------
+// LINE CHART — trend over time
+// -----------------------------------------------------------------------
+function populateTrendFilter() {
+  const sel     = document.getElementById('trendFilter');
+  const current = sel.value;
+  // Remove old options except "All Countries"
+  while (sel.options.length > 1) sel.remove(1);
+
+  const countries = [...new Set(allRecords.map(r => r.country))].sort();
+  countries.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    sel.appendChild(o);
+  });
+  sel.value = current;
+}
+
+async function renderLineChart() {
+  const country = document.getElementById('trendFilter').value;
+
+  try {
+    // Fetch trend data filtered by country
+    const url  = API_BASE + `/api/vaccines/charts/trend?country=${encodeURIComponent(country)}`;
+    const data = await fetchJson(`/api/vaccines/charts/trend?country=${encodeURIComponent(country)}`);
+
+    // data = [{ date: "2023-01-10", doses: 1400000000 }, ...]
+    const labels = data.map(d => d.date);
+
+    // Calculate cumulative sum
+    let running = 0;
+    const cumulative = data.map(d => { running += (d.doses || 0); return running; });
+
+    if (chartLine) chartLine.destroy();
+
+    const ctx  = document.getElementById('lineChart').getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 300);
+    grad.addColorStop(0, 'rgba(88,166,255,0.3)');
+    grad.addColorStop(1, 'rgba(88,166,255,0.0)');
+
+    chartLine = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Cumulative Doses',
+          data: cumulative,
+          borderColor: '#58a6ff',
+          borderWidth: 2,
+          backgroundColor: grad,
+          fill: true,
+          tension: 0.4,
+          pointRadius: labels.length < 50 ? 3 : 0,
+          pointHoverRadius: 5,
+          pointBackgroundColor: '#58a6ff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Doses: ${fmt(c.raw)}` } } },
+        scales: {
+          x: { grid: { color: '#161b22' }, ticks: { maxTicksLimit: 10 } },
+          y: { grid: { color: '#161b22' }, ticks: { callback: v => fmt(v) } }
+        }
+      }
+    });
+  } catch (e) {
+    console.error('Trend chart error:', e);
+  }
+}
+
+// -----------------------------------------------------------------------
+// TABLE
+// -----------------------------------------------------------------------
+function renderTable(data) {
+  const tbody = document.getElementById('tableBody');
+  document.getElementById('recordCount').textContent = `${data.length} records`;
+
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="empty-icon">📭</div>No records found</div></td></tr>`;
+    return;
+  }
+
+  // Show max 300 rows for performance
+  tbody.innerHTML = data.slice(0, 300).map(r => `
+    <tr>
+      <td class="td-num">${r.id}</td>
+      <td class="td-country">${esc(r.country)}</td>
+      <td class="td-vaccine">${esc(r.vaccineName)}</td>
+      <td class="td-num">${fmt(r.totalVaccinated)}</td>
+      <td class="td-num">${fmt(r.totalDoses)}</td>
+      <td class="td-num">${fmt(r.fullyVaccinated)}</td>
+      <td class="td-date">${r.recordDate || '—'}</td>
+      <td>
+        <div class="td-actions">
+          <button class="btn btn-ghost btn-sm" onclick="prefillEdit(${r.id})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="quickDelete(${r.id})">Del</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const v = document.getElementById('filterVaccine').value.toLowerCase();
+  const filtered = allRecords.filter(r =>
+    (r.country || '').toLowerCase().includes(q) &&
+    (!v || (r.vaccineName || '').toLowerCase() === v)
+  );
+  renderTable(filtered);
+}
+
+function populateVaccineFilter() {
+  const sel   = document.getElementById('filterVaccine');
+  const names = [...new Set(allRecords.map(r => r.vaccineName).filter(Boolean))].sort();
+  // Remove old options except "All vaccines"
+  while (sel.options.length > 1) sel.remove(1);
+  names.forEach(n => {
+    const o = document.createElement('option');
+    o.value = n; o.textContent = n;
+    sel.appendChild(o);
+  });
+}
+
+// -----------------------------------------------------------------------
+// CRUD TABS
+// -----------------------------------------------------------------------
+function showTab(tab) {
+  ['add','edit','delete'].forEach(t => {
+    document.getElementById('formAdd' === `form${cap(t)}` ? 'formAdd' : `form${cap(t)}`).classList.remove('active');
+    document.getElementById(`tab${cap(t)}`).className = 'crud-tab';
+  });
+  document.getElementById(`form${cap(tab)}`).classList.add('active');
+  document.getElementById(`tab${cap(tab)}`).classList.add(`active-${tab}`);
+}
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// -----------------------------------------------------------------------
+// ADD RECORD
+// Calls POST /api/vaccines/add with JSON body
+// -----------------------------------------------------------------------
+async function addRecord() {
+  const body = {
+    country:          document.getElementById('add_country').value.trim(),
+    vaccineName:      document.getElementById('add_vaccine').value.trim(),
+    totalVaccinated:  numOrNull('add_totalVaccinated'),
+    totalDoses:       numOrNull('add_totalDoses'),
+    fullyVaccinated:  numOrNull('add_fullyVaccinated'),
+    recordDate:       document.getElementById('add_date').value || null,
+    population:       numOrNull('add_population')
+  };
+
+  if (!body.country || !body.vaccineName) {
+    showMsg('addMsg', 'Country and Vaccine Name are required!', false);
+    return;
+  }
+
+  try {
+    /*
+    POST request explained:
+    - method: 'POST'  → creates new data (not GET which reads)
+    - headers: tells server we're sending JSON
+    - body: JSON.stringify() converts JS object → JSON string
+    Your @PostMapping("/add") + @RequestBody receives this
+    */
+    const res = await fetch(`${API_BASE}/api/vaccines/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+      const saved = await res.json();
+      showMsg('addMsg', `✅ Record saved! ID: ${saved.id}`, true);
+      clearForm('add_country','add_vaccine','add_totalVaccinated','add_totalDoses','add_fullyVaccinated','add_date','add_population');
+      await loadAllData();  // refresh everything
+    } else {
+      const err = await res.json();
+      showMsg('addMsg', `❌ ${err.error || 'Failed to save'}`, false);
+    }
+  } catch (e) {
+    showMsg('addMsg', `❌ Network error: ${e.message}`, false);
+  }
+}
+
+// -----------------------------------------------------------------------
+// LOAD RECORD FOR EDITING
+// -----------------------------------------------------------------------
+async function loadRecord() {
+  const id = document.getElementById('edit_id').value;
+  if (!id) { showMsg('editMsg', 'Enter an ID first', false); return; }
+
+  try {
+    // GET /api/vaccines/{id} — fetches single record
+    const res = await fetch(`${API_BASE}/api/vaccines/${id}`);
+    if (!res.ok) { showMsg('editMsg', 'Record not found', false); return; }
+
+    const r = await res.json();
+    document.getElementById('edit_country').value          = r.country          || '';
+    document.getElementById('edit_vaccine').value          = r.vaccineName      || '';
+    document.getElementById('edit_totalVaccinated').value  = r.totalVaccinated  || '';
+    document.getElementById('edit_totalDoses').value       = r.totalDoses       || '';
+    document.getElementById('edit_fullyVaccinated').value  = r.fullyVaccinated  || '';
+    document.getElementById('edit_date').value             = r.recordDate       || '';
+    document.getElementById('edit_population').value       = r.population       || '';
+
+    document.getElementById('editFields').style.display = 'block';
+    showMsg('editMsg', `Loaded record #${id}`, true);
+  } catch (e) {
+    showMsg('editMsg', `Error: ${e.message}`, false);
+  }
+}
+
+// Pre-fill edit form from table row button
+function prefillEdit(id) {
+  showTab('edit');
+  document.getElementById('edit_id').value = id;
+  loadRecord();
+}
+
+// -----------------------------------------------------------------------
+// UPDATE RECORD
+// Calls PUT /api/vaccines/update/{id}
+// -----------------------------------------------------------------------
+async function updateRecord() {
+  const id   = document.getElementById('edit_id').value;
+  const body = {
+    country:         document.getElementById('edit_country').value.trim()          || null,
+    vaccineName:     document.getElementById('edit_vaccine').value.trim()          || null,
+    totalVaccinated: numOrNull('edit_totalVaccinated'),
+    totalDoses:      numOrNull('edit_totalDoses'),
+    fullyVaccinated: numOrNull('edit_fullyVaccinated'),
+    recordDate:      document.getElementById('edit_date').value                    || null,
+    population:      numOrNull('edit_population')
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/api/vaccines/update/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+      showMsg('editMsg', '✅ Record updated successfully!', true);
+      await loadAllData();
+    } else {
+      const err = await res.json();
+      showMsg('editMsg', `❌ ${err.error}`, false);
+    }
+  } catch (e) {
+    showMsg('editMsg', `❌ ${e.message}`, false);
+  }
+}
+
+// -----------------------------------------------------------------------
+// DELETE RECORD
+// -----------------------------------------------------------------------
+async function deleteRecord() {
+  const id = document.getElementById('delete_id').value;
+  if (!id) { showMsg('deleteMsg', 'Enter an ID first', false); return; }
+  if (!confirm(`Delete record #${id}? This cannot be undone.`)) return;
+  await doDelete(id, 'deleteMsg');
+}
+
+// Quick delete from table row
+async function quickDelete(id) {
+  if (!confirm(`Delete record #${id}?`)) return;
+  await doDelete(id, null);
+}
+
+async function doDelete(id, msgEl) {
+  try {
+    // DELETE /api/vaccines/delete/{id}
+    const res = await fetch(`${API_BASE}/api/vaccines/delete/${id}`, { method: 'DELETE' });
+
+    if (res.ok) {
+      if (msgEl) showMsg(msgEl, `✅ Record #${id} deleted`, true);
+      await loadAllData();
+    } else {
+      const err = await res.json();
+      if (msgEl) showMsg(msgEl, `❌ ${err.error}`, false);
+    }
+  } catch (e) {
+    if (msgEl) showMsg(msgEl, `❌ ${e.message}`, false);
+  }
+}
+
+// -----------------------------------------------------------------------
+// DEMO MODE — shows how the dashboard looks without a real backend
+// -----------------------------------------------------------------------
+function loadDemo() {
+  API_BASE = '';
+  setStatus('demo mode', null);
+
+  const countries  = ['India','USA','Brazil','UK','Germany','France','Japan','China','Canada','Australia','Indonesia','Mexico'];
+  const vaccines   = ['Pfizer-BioNTech','Covaxin','Covishield','Moderna','Oxford-AstraZeneca','Johnson & Johnson','Sinovac','Sinopharm'];
+  allRecords = [];
+
+  for (let i = 1; i <= 60; i++) {
+    const c = countries[i % countries.length];
+    const v = vaccines[i % vaccines.length];
+    const tv = Math.floor(Math.random() * 800_000_000) + 5_000_000;
+    allRecords.push({
+      id: i, country: c, vaccineName: v,
+      totalVaccinated: tv, totalDoses: Math.floor(tv * 1.8),
+      fullyVaccinated: Math.floor(tv * 0.85),
+      recordDate: `202${2 + (i%2)}-${String((i%12)+1).padStart(2,'0')}-15`,
+      population: Math.floor(Math.random() * 1_000_000_000) + 10_000_000
+    });
+  }
+
+  const byCountry = countries.map(c => ({
+    country: c,
+    total: allRecords.filter(r => r.country===c).reduce((s,r) => s+(r.totalVaccinated||0), 0)
+  })).sort((a,b) => b.total-a.total);
+
+  const vaccMap = {};
+  allRecords.forEach(r => { vaccMap[r.vaccineName] = (vaccMap[r.vaccineName]||0) + (r.totalDoses||0); });
+  const byType = Object.entries(vaccMap).map(([vaccineName,doses]) => ({vaccineName, doses}));
+
+  const trendMap = {};
+  allRecords.forEach(r => { trendMap[r.recordDate] = (trendMap[r.recordDate]||0) + (r.totalDoses||0); });
+  const trend = Object.entries(trendMap).sort().map(([date,doses]) => ({date,doses}));
+
+  chartData = { byCountry, byType, trend };
+
+  renderStats({
+    totalVaccinated:  allRecords.reduce((s,r)=>s+(r.totalVaccinated||0),0),
+    totalDoses:       allRecords.reduce((s,r)=>s+(r.totalDoses||0),0),
+    fullyVaccinated:  allRecords.reduce((s,r)=>s+(r.fullyVaccinated||0),0),
+    countriesTracked: countries.length,
+    vaccineTypes:     vaccines.length,
+    totalRecords:     allRecords.length
+  });
+
+  renderBarChart();
+  renderDoughnutChart();
+  populateTrendFilter();
+
+  // Line chart in demo mode (no API call)
+  const labels = trend.map(d => d.date);
+  let run = 0;
+  const cum = trend.map(d => { run += d.doses; return run; });
+  if (chartLine) chartLine.destroy();
+  const ctx  = document.getElementById('lineChart').getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,0,300);
+  grad.addColorStop(0,'rgba(88,166,255,0.3)'); grad.addColorStop(1,'rgba(88,166,255,0)');
+  chartLine = new Chart(ctx, {
+    type:'line', data:{ labels, datasets:[{ data:cum, borderColor:'#58a6ff', backgroundColor:grad, fill:true, tension:0.4, borderWidth:2, pointRadius:3 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{grid:{color:'#161b22'},ticks:{maxTicksLimit:10}}, y:{grid:{color:'#161b22'},ticks:{callback:v=>fmt(v)}} } }
+  });
+
+  renderTable(allRecords);
+  populateVaccineFilter();
+}
+
+// -----------------------------------------------------------------------
+// HELPERS
+// -----------------------------------------------------------------------
+
+// Format large numbers: 1500000 → "1.5M"
+function fmt(n) {
+  if (n == null || n === '') return '—';
+  if (n >= 1e9) return (n/1e9).toFixed(1)+'B';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return Number(n).toLocaleString();
+}
+
+// Prevent XSS (cross-site scripting) attacks when inserting text into HTML
+function esc(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Read a number input, return null if empty
+function numOrNull(id) {
+  const v = document.getElementById(id).value;
+  return v === '' ? null : Number(v);
+}
+
+// Show success/error message in a form
+function showMsg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className   = 'form-message ' + (ok ? 'success' : 'error');
+  setTimeout(() => { el.className = 'form-message'; }, 5000);
+}
+
+// Clear multiple input fields
+function clearForm(...ids) {
+  ids.forEach(id => { document.getElementById(id).value = ''; });
+}
+
+// -----------------------------------------------------------------------
+// ON PAGE LOAD
+// -----------------------------------------------------------------------
+window.addEventListener('DOMContentLoaded', () => {
+  // Show demo mode on startup so the dashboard looks alive
+  loadDemo();
+  showTab('add');  // show Add tab by default
+});
+</script>
+</body>
+</html>
