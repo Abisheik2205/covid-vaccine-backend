@@ -1,33 +1,74 @@
-HELP.md
+# =================================================================
+# .GITIGNORE for Spring Boot
+# Files listed here are IGNORED by Git — not uploaded to GitHub.
+#
+# WHY IGNORE THESE FILES?
+# - Compiled files: auto-generated, no need to store them
+# - IDE files: Eclipse settings only work on your PC, not others
+# - Secrets: NEVER upload passwords or API keys to GitHub!
+# =================================================================
+
+# -----------------------------------------------------------------
+# COMPILED JAVA OUTPUT
+# Maven builds your code into /target — it's huge and auto-generated
+# Anyone who clones your repo runs: mvn package  to recreate it
+# -----------------------------------------------------------------
 target/
-.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+*.class
 
-### STS ###
-.apt_generated
+# -----------------------------------------------------------------
+# ECLIPSE IDE FILES
+# These are personal settings for your Eclipse workspace.
+# They have no meaning on Render's servers or another developer's PC.
+# -----------------------------------------------------------------
 .classpath
-.factorypath
 .project
-.settings
-.springBeans
-.sts4-cache
+.settings/
+*.launch
+.factorypath
 
-### IntelliJ IDEA ###
-.idea
-*.iws
+# -----------------------------------------------------------------
+# INTELLIJ IDEA FILES (in case you ever use IntelliJ)
+# -----------------------------------------------------------------
+.idea/
 *.iml
-*.ipr
+*.iws
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
+# -----------------------------------------------------------------
+# MAVEN WRAPPER (optional, keep if you have it)
+# -----------------------------------------------------------------
+# .mvn/
 
-### VS Code ###
-.vscode/
+# -----------------------------------------------------------------
+# SECRETS — NEVER COMMIT THESE!
+# If you have a file with real passwords/API keys, list it here.
+# Use environment variables on Render instead.
+# -----------------------------------------------------------------
+application-secret.properties
+*.env
+.env
+
+# -----------------------------------------------------------------
+# LOGS
+# Log files are generated at runtime — no need to version them
+# -----------------------------------------------------------------
+*.log
+logs/
+
+# -----------------------------------------------------------------
+# OS FILES
+# Windows and Mac create hidden system files in every folder
+# -----------------------------------------------------------------
+Thumbs.db
+.DS_Store
+
+# -----------------------------------------------------------------
+# PACKAGE FILES
+# -----------------------------------------------------------------
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
