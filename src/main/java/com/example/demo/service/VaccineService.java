@@ -1,236 +1,244 @@
 package com.example.demo.service;
 
-
-//============================================================
-//WHAT IS THIS FILE?
-//This is the SERVICE layer — the "business logic" of your app.
-//
-//THE 3-LAYER ARCHITECTURE (important concept):
-//
-//Controller  →  receives HTTP requests, sends responses
-//    ↓
-//Service     →  processes data, applies business rules  ← YOU ARE HERE
-//    ↓
-//Repository  →  talks to the database
-//
-//WHY SEPARATE LAYERS?
-//- If you change your database, only Repository changes
-//- If business rules change, only Service changes
-//- Controller stays clean — it just routes requests
-//- Each layer is independently testable
-//============================================================
+// ============================================================
+// VaccineService.java — FIRESTORE BUSINESS LOGIC
+// Replaces JPA Repository with Firestore API calls.
+// Firestore stores data as Documents inside Collections.
+// Collection = "vaccines" (like a SQL table)
+// Document   = one vaccine record (like a SQL row)
+// ============================================================
 
 import com.example.demo.model.Vaccine;
-import com.example.demo.repository.VaccineRepository;
+import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
-@Service   // Marks this as a Spring-managed service component
+@Service
 public class VaccineService {
 
- // --------------------------------------------------------
- // DEPENDENCY INJECTION
- // @Autowired tells Spring: "find the VaccineRepository bean
- // and inject it here automatically"
- // You never write: new VaccineRepository() — Spring does it
- // --------------------------------------------------------
- @Autowired
- private VaccineRepository vaccineRepository;
+    private static final String COLLECTION = "vaccines";
 
- // ============================================================
- // 1. GET ALL VACCINES
- // ============================================================
- public List<Vaccine> getAllVaccines() {
-     // findAll() is inherited from JpaRepository
-     // Returns every row in the vaccines table
-     return vaccineRepository.findAll();
- }
+    @Autowired
+    private Firestore firestore;
 
- // ============================================================
- // 2. GET VACCINE BY ID
- // ============================================================
- public Optional<Vaccine> getVaccineById(Long id) {
-     // Optional = the record might or might not exist
-     // findById returns Optional<Vaccine> — caller checks if it's present
-     return vaccineRepository.findById(id);
- }
+    // -------------------------------------------------------
+    // GET ALL VACCINES
+    // -------------------------------------------------------
+    public List<Vaccine> getAllVaccines() throws ExecutionException, InterruptedException {
+        // Get all documents from "vaccines" collection
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION).get();
+        List<QueryDocumentSnapshot> docs = future.get().getDocuments();
 
- // ============================================================
- // 3. GET VACCINES BY COUNTRY
- // ============================================================
- public List<Vaccine> getByCountry(String country) {
-     return vaccineRepository.findByCountryIgnoreCase(country);
- }
+        List<Vaccine> list = new ArrayList<>();
+        for (QueryDocumentSnapshot doc : docs) {
+            Vaccine v = doc.toObject(Vaccine.class);
+            v.setId(doc.getId());  // set Firestore document ID
+            list.add(v);
+        }
+        return list;
+    }
 
- // ============================================================
- // 4. SEARCH VACCINES (partial country name match)
- // ============================================================
- public List<Vaccine> searchByCountry(String keyword) {
-     return vaccineRepository.findByCountryContainingIgnoreCase(keyword);
- }
+    // -------------------------------------------------------
+    // GET BY ID
+    // -------------------------------------------------------
+    public Optional<Vaccine> getVaccineById(String id) throws ExecutionException, InterruptedException {
+        DocumentSnapshot doc = firestore.collection(COLLECTION).document(id).get().get();
+        if (doc.exists()) {
+            Vaccine v = doc.toObject(Vaccine.class);
+            v.setId(doc.getId());
+            return Optional.of(v);
+        }
+        return Optional.empty();
+    }
 
- // ============================================================
- // 5. GET VACCINES BY VACCINE NAME
- // ============================================================
- public List<Vaccine> getByVaccineName(String name) {
-     return vaccineRepository.findByVaccineNameIgnoreCase(name);
- }
+    // -------------------------------------------------------
+    // SEARCH BY COUNTRY (partial match)
+    // -------------------------------------------------------
+    public List<Vaccine> searchByCountry(String keyword) throws ExecutionException, InterruptedException {
+        List<Vaccine> all = getAllVaccines();
+        String lower = keyword.toLowerCase();
+        return all.stream()
+            .filter(v -> v.getCountry() != null && v.getCountry().toLowerCase().contains(lower))
+            .collect(Collectors.toList());
+    }
 
- // ============================================================
- // 6. ADD NEW VACCINE RECORD
- // ============================================================
- public Vaccine addVaccine(Vaccine vaccine) {
-     // save() does INSERT if the object has no id,
-     // or UPDATE if the object already has an id
-     return vaccineRepository.save(vaccine);
- }
+    // -------------------------------------------------------
+    // GET BY COUNTRY (exact match)
+    // -------------------------------------------------------
+    public List<Vaccine> getByCountry(String country) throws ExecutionException, InterruptedException {
+        ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION)
+            .whereEqualTo("country", country).get();
+        List<Vaccine> list = new ArrayList<>();
+        for (QueryDocumentSnapshot doc : future.get().getDocuments()) {
+            Vaccine v = doc.toObject(Vaccine.class);
+            v.setId(doc.getId());
+            list.add(v);
+        }
+        return list;
+    }
 
- // ============================================================
- // 7. UPDATE EXISTING VACCINE RECORD
- // ============================================================
- public Vaccine updateVaccine(Long id, Vaccine updatedVaccine) {
-     // First check if the record exists
-     Optional<Vaccine> existing = vaccineRepository.findById(id);
+    // -------------------------------------------------------
+    // ADD VACCINE
+    // -------------------------------------------------------
+    public Vaccine addVaccine(Vaccine vaccine) throws ExecutionException, InterruptedException {
+        // Firestore auto-generates a unique document ID
+        DocumentReference ref = firestore.collection(COLLECTION).document();
+        vaccine.setId(ref.getId());
 
-     if (existing.isPresent()) {
-         Vaccine vaccine = existing.get();
+        // Convert to map to store in Firestore
+        Map<String, Object> data = vaccineToMap(vaccine);
+        ref.set(data).get();  // .get() waits for write to complete
+        return vaccine;
+    }
 
-         // Update only the fields that were provided
-         // This is called a "partial update" — only change what's needed
-         if (updatedVaccine.getCountry()         != null) vaccine.setCountry(updatedVaccine.getCountry());
-         if (updatedVaccine.getVaccineName()     != null) vaccine.setVaccineName(updatedVaccine.getVaccineName());
-         if (updatedVaccine.getTotalVaccinated() != null) vaccine.setTotalVaccinated(updatedVaccine.getTotalVaccinated());
-         if (updatedVaccine.getTotalDoses()      != null) vaccine.setTotalDoses(updatedVaccine.getTotalDoses());
-         if (updatedVaccine.getFullyVaccinated() != null) vaccine.setFullyVaccinated(updatedVaccine.getFullyVaccinated());
-         if (updatedVaccine.getRecordDate()      != null) vaccine.setRecordDate(updatedVaccine.getRecordDate());
-         if (updatedVaccine.getPopulation()      != null) vaccine.setPopulation(updatedVaccine.getPopulation());
+    // -------------------------------------------------------
+    // UPDATE VACCINE
+    // -------------------------------------------------------
+    public Vaccine updateVaccine(String id, Vaccine updated)
+            throws ExecutionException, InterruptedException {
+        DocumentReference ref = firestore.collection(COLLECTION).document(id);
+        DocumentSnapshot doc  = ref.get().get();
 
-         return vaccineRepository.save(vaccine);   // save() = UPDATE since it has an id
-     } else {
-         // Throw an exception that the controller will catch
-         throw new RuntimeException("Vaccine record not found with id: " + id);
-     }
- }
+        if (!doc.exists()) throw new RuntimeException("Vaccine record not found with id: " + id);
 
- // ============================================================
- // 8. DELETE VACCINE RECORD
- // ============================================================
- public void deleteVaccine(Long id) {
-     if (!vaccineRepository.existsById(id)) {
-         throw new RuntimeException("Vaccine record not found with id: " + id);
-     }
-     vaccineRepository.deleteById(id);
- }
+        // Only update non-null fields
+        Map<String, Object> updates = new HashMap<>();
+        if (updated.getCountry()         != null) updates.put("country",         updated.getCountry());
+        if (updated.getVaccineName()     != null) updates.put("vaccineName",     updated.getVaccineName());
+        if (updated.getTotalVaccinated() != null) updates.put("totalVaccinated", updated.getTotalVaccinated());
+        if (updated.getTotalDoses()      != null) updates.put("totalDoses",       updated.getTotalDoses());
+        if (updated.getFullyVaccinated() != null) updates.put("fullyVaccinated", updated.getFullyVaccinated());
+        if (updated.getRecordDate()      != null) updates.put("recordDate",       updated.getRecordDate());
+        if (updated.getPopulation()      != null) updates.put("population",       updated.getPopulation());
 
- // ============================================================
- // 9. GET STATISTICS (for KPI cards on dashboard)
- // Returns a Map — like a dictionary: key → value
- // This becomes a JSON object in the API response
- // ============================================================
- public Map<String, Object> getStatistics() {
-     Map<String, Object> stats = new HashMap<>();
+        ref.update(updates).get();
 
-     // Basic counts and sums
-     stats.put("totalRecords",       vaccineRepository.count());
-     stats.put("totalVaccinated",    vaccineRepository.sumTotalVaccinated());
-     stats.put("totalDoses",         vaccineRepository.sumTotalDoses());
-     stats.put("fullyVaccinated",    vaccineRepository.sumFullyVaccinated());
-     stats.put("countriesTracked",   vaccineRepository.countDistinctCountries());
-     stats.put("vaccineTypes",       vaccineRepository.findAllDistinctVaccineNames().size());
+        // Return updated document
+        Vaccine v = ref.get().get().toObject(Vaccine.class);
+        v.setId(id);
+        return v;
+    }
 
-     return stats;
-     /*
-     This returns JSON like:
-     {
-         "totalRecords": 150,
-         "totalVaccinated": 5200000000,
-         "totalDoses": 11500000000,
-         "fullyVaccinated": 4800000000,
-         "countriesTracked": 195,
-         "vaccineTypes": 12
-     }
-     */
- }
+    // -------------------------------------------------------
+    // DELETE VACCINE
+    // -------------------------------------------------------
+    public void deleteVaccine(String id) throws ExecutionException, InterruptedException {
+        DocumentSnapshot doc = firestore.collection(COLLECTION).document(id).get().get();
+        if (!doc.exists()) throw new RuntimeException("Vaccine record not found with id: " + id);
+        firestore.collection(COLLECTION).document(id).delete().get();
+    }
 
- // ============================================================
- // 10. GET CHART DATA — vaccinations per country
- // ============================================================
- public List<Map<String, Object>> getVaccinationsByCountry() {
-     List<Object[]> raw = vaccineRepository.getVaccinationsByCountry();
-     List<Map<String, Object>> result = new ArrayList<>();
+    // -------------------------------------------------------
+    // STATISTICS for dashboard cards
+    // -------------------------------------------------------
+    public Map<String, Object> getStatistics() throws ExecutionException, InterruptedException {
+        List<Vaccine> all = getAllVaccines();
 
-     for (Object[] row : raw) {
-         // Each row is [countryName, totalVaccinated]
-         Map<String, Object> item = new HashMap<>();
-         item.put("country",  row[0]);   // index 0 = first SELECT field
-         item.put("total",    row[1]);   // index 1 = second SELECT field
-         result.add(item);
-     }
-     return result;
-     /*
-     Returns JSON like:
-     [
-       { "country": "India",  "total": 1800000000 },
-       { "country": "China",  "total": 2400000000 },
-       ...
-     ]
-     */
- }
+        long totalVaccinated  = all.stream().mapToLong(v -> v.getTotalVaccinated()  != null ? v.getTotalVaccinated()  : 0).sum();
+        long totalDoses       = all.stream().mapToLong(v -> v.getTotalDoses()       != null ? v.getTotalDoses()       : 0).sum();
+        long fullyVaccinated  = all.stream().mapToLong(v -> v.getFullyVaccinated()  != null ? v.getFullyVaccinated()  : 0).sum();
+        long countries        = all.stream().map(Vaccine::getCountry).filter(Objects::nonNull).distinct().count();
+        long vaccineTypes     = all.stream().map(Vaccine::getVaccineName).filter(Objects::nonNull).distinct().count();
 
- // ============================================================
- // 11. GET CHART DATA — doses by vaccine type
- // ============================================================
- public List<Map<String, Object>> getDosesByVaccineType() {
-     List<Object[]> raw = vaccineRepository.getDosesByVaccineType();
-     List<Map<String, Object>> result = new ArrayList<>();
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalRecords",     all.size());
+        stats.put("totalVaccinated",  totalVaccinated);
+        stats.put("totalDoses",       totalDoses);
+        stats.put("fullyVaccinated",  fullyVaccinated);
+        stats.put("countriesTracked", countries);
+        stats.put("vaccineTypes",     vaccineTypes);
+        return stats;
+    }
 
-     for (Object[] row : raw) {
-         Map<String, Object> item = new HashMap<>();
-         item.put("vaccineName", row[0]);
-         item.put("doses",       row[1]);
-         result.add(item);
-     }
-     return result;
- }
+    // -------------------------------------------------------
+    // CHART DATA — by country
+    // -------------------------------------------------------
+    public List<Map<String, Object>> getVaccinationsByCountry()
+            throws ExecutionException, InterruptedException {
+        List<Vaccine> all = getAllVaccines();
 
- // ============================================================
- // 12. GET CHART DATA — doses over time (trend)
- // ============================================================
- public List<Map<String, Object>> getDosesOverTime(String country) {
-     List<Object[]> raw;
+        Map<String, Long> map = new LinkedHashMap<>();
+        for (Vaccine v : all) {
+            if (v.getCountry() == null) continue;
+            map.merge(v.getCountry(), v.getTotalVaccinated() != null ? v.getTotalVaccinated() : 0, Long::sum);
+        }
 
-     if (country != null && !country.isBlank() && !country.equalsIgnoreCase("all")) {
-         // Filtered by country
-         raw = vaccineRepository.getDosesOverTimeByCountry(country);
-     } else {
-         // All countries
-         raw = vaccineRepository.getDosesOverTime();
-     }
+        return map.entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+            .map(e -> { Map<String, Object> m = new HashMap<>(); m.put("country", e.getKey()); m.put("total", e.getValue()); return m; })
+            .collect(Collectors.toList());
+    }
 
-     List<Map<String, Object>> result = new ArrayList<>();
-     for (Object[] row : raw) {
-         Map<String, Object> item = new HashMap<>();
-         item.put("date",  row[0].toString());   // LocalDate → String
-         item.put("doses", row[1]);
-         result.add(item);
-     }
-     return result;
- }
+    // -------------------------------------------------------
+    // CHART DATA — by vaccine type
+    // -------------------------------------------------------
+    public List<Map<String, Object>> getDosesByVaccineType()
+            throws ExecutionException, InterruptedException {
+        List<Vaccine> all = getAllVaccines();
 
- // ============================================================
- // 13. GET ALL DISTINCT COUNTRIES (for dropdown filter)
- // ============================================================
- public List<String> getAllCountries() {
-     return vaccineRepository.findAllDistinctCountries();
- }
+        Map<String, Long> map = new LinkedHashMap<>();
+        for (Vaccine v : all) {
+            if (v.getVaccineName() == null) continue;
+            map.merge(v.getVaccineName(), v.getTotalDoses() != null ? v.getTotalDoses() : 0, Long::sum);
+        }
 
- // ============================================================
- // 14. GET ALL DISTINCT VACCINE NAMES (for dropdown filter)
- // ============================================================
- public List<String> getAllVaccineNames() {
-     return vaccineRepository.findAllDistinctVaccineNames();
- }
+        return map.entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+            .map(e -> { Map<String, Object> m = new HashMap<>(); m.put("vaccineName", e.getKey()); m.put("doses", e.getValue()); return m; })
+            .collect(Collectors.toList());
+    }
+
+    // -------------------------------------------------------
+    // CHART DATA — trend over time
+    // -------------------------------------------------------
+    public List<Map<String, Object>> getDosesOverTime(String country)
+            throws ExecutionException, InterruptedException {
+        List<Vaccine> all = getAllVaccines();
+
+        if (country != null && !country.isBlank() && !country.equalsIgnoreCase("all")) {
+            all = all.stream()
+                .filter(v -> country.equalsIgnoreCase(v.getCountry()))
+                .collect(Collectors.toList());
+        }
+
+        Map<String, Long> map = new TreeMap<>();
+        for (Vaccine v : all) {
+            if (v.getRecordDate() == null) continue;
+            map.merge(v.getRecordDate(), v.getTotalDoses() != null ? v.getTotalDoses() : 0, Long::sum);
+        }
+
+        return map.entrySet().stream()
+            .map(e -> { Map<String, Object> m = new HashMap<>(); m.put("date", e.getKey()); m.put("doses", e.getValue()); return m; })
+            .collect(Collectors.toList());
+    }
+
+    // -------------------------------------------------------
+    // GET ALL COUNTRIES (for dropdown)
+    // -------------------------------------------------------
+    public List<String> getAllCountries() throws ExecutionException, InterruptedException {
+        return getAllVaccines().stream()
+            .map(Vaccine::getCountry).filter(Objects::nonNull)
+            .distinct().sorted().collect(Collectors.toList());
+    }
+
+    // -------------------------------------------------------
+    // HELPER: Convert Vaccine object to Firestore map
+    // -------------------------------------------------------
+    private Map<String, Object> vaccineToMap(Vaccine v) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id",               v.getId());
+        map.put("country",          v.getCountry());
+        map.put("vaccineName",      v.getVaccineName());
+        map.put("totalVaccinated",  v.getTotalVaccinated());
+        map.put("totalDoses",       v.getTotalDoses());
+        map.put("fullyVaccinated",  v.getFullyVaccinated());
+        map.put("recordDate",       v.getRecordDate());
+        map.put("population",       v.getPopulation());
+        return map;
+    }
 }
-

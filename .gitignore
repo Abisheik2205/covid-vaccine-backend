@@ -1,74 +1,36 @@
-# =================================================================
-# .GITIGNORE for Spring Boot
-# Files listed here are IGNORED by Git — not uploaded to GitHub.
-#
-# WHY IGNORE THESE FILES?
-# - Compiled files: auto-generated, no need to store them
-# - IDE files: Eclipse settings only work on your PC, not others
-# - Secrets: NEVER upload passwords or API keys to GitHub!
-# =================================================================
+# ============================================================
+# .gitignore — Files NOT to push to GitHub
+# CRITICAL: Never push secrets to GitHub!
+# ============================================================
 
-# -----------------------------------------------------------------
-# COMPILED JAVA OUTPUT
-# Maven builds your code into /target — it's huge and auto-generated
-# Anyone who clones your repo runs: mvn package  to recreate it
-# -----------------------------------------------------------------
+# Firebase secret key — NEVER commit this!
+src/main/resources/firebase-key.json
+firebase-key.json
+
+# Environment variable files — NEVER commit these!
+.env
+.env.local
+.env.production
+
+# Only .env.example is safe to commit (has no real values)
+
+# Maven
 target/
 *.class
 
-# -----------------------------------------------------------------
-# ECLIPSE IDE FILES
-# These are personal settings for your Eclipse workspace.
-# They have no meaning on Render's servers or another developer's PC.
-# -----------------------------------------------------------------
+# Eclipse
 .classpath
 .project
 .settings/
-*.launch
-.factorypath
+bin/
 
-# -----------------------------------------------------------------
-# INTELLIJ IDEA FILES (in case you ever use IntelliJ)
-# -----------------------------------------------------------------
+# IntelliJ
 .idea/
 *.iml
-*.iws
 
-# -----------------------------------------------------------------
-# MAVEN WRAPPER (optional, keep if you have it)
-# -----------------------------------------------------------------
-# .mvn/
-
-# -----------------------------------------------------------------
-# SECRETS — NEVER COMMIT THESE!
-# If you have a file with real passwords/API keys, list it here.
-# Use environment variables on Render instead.
-# -----------------------------------------------------------------
-application-secret.properties
-*.env
-.env
-
-# -----------------------------------------------------------------
-# LOGS
-# Log files are generated at runtime — no need to version them
-# -----------------------------------------------------------------
-*.log
-logs/
-
-# -----------------------------------------------------------------
-# OS FILES
-# Windows and Mac create hidden system files in every folder
-# -----------------------------------------------------------------
-Thumbs.db
+# OS
 .DS_Store
+Thumbs.db
 
-# -----------------------------------------------------------------
-# PACKAGE FILES
-# -----------------------------------------------------------------
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
+# Logs
+*.log
